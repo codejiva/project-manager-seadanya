@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import TaskCard from './TaskCard';
 
-const API_URL = 'http://localhost:3001';
+const API_URL = '';
 
 const KanbanBoard = ({ user }) => {
     const [tasks, setTasks] = useState([]);

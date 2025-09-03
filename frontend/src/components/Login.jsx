@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3001'; // URL backend kita
+const API_URL = ''; // URL backend kita
 
 const Login = ({ onLogin }) => {
   const [username, setUsername] = useState('');
