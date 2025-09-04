@@ -12,7 +12,7 @@ const Login = ({ onLogin }) => {
     e.preventDefault();
     setError('');
     try {
-      const response = await axios.post(`${API_URL}/login`, { username, password });
+      const response = await axios.post(`${API_URL}/api/login`, { username, password });
       onLogin(response.data.user);
     } catch (err) {
       setError(err.response?.data?.error || 'Login gagal, coba lagi.');
