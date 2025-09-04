@@ -13,10 +13,8 @@ const PriorityBadge = ({ priority }) => {
     return <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${styles[priority]}`}>{text[priority]}</span>;
 };
 
-const TaskCard = ({ task }) => {
-    // Dapatkan data user dari local storage untuk pengecekan role
-    const user = JSON.parse(localStorage.getItem('user'));
-    const isDeveloper = user?.role === 'DEVELOPER';
+const TaskCard = ({ task, user }) => { // Terima 'user' sebagai prop
+    const isDeveloper = user?.role === 'DEVELOPER'; // Gunakan user dari prop
 
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: task.id,
