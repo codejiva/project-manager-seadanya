@@ -1,21 +1,26 @@
 // frontend/src/components/KanbanBoard.jsx
-// HANYA bagian <Column> yang berubah, tapi untuk gampangnya, ganti saja semua isinya
 
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
+import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { useDroppable } from '@dnd-kit/core'; // Import hook baru
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+
 import TaskCard from './TaskCard';
 import CreateTaskModal from './CreateTaskModal';
 import ConfirmationModal from './ConfirmationModal';
 
 const API_URL = '';
 
-const Column = ({ title, tasks, user }) => { // Tambahkan 'user' di sini
+// Komponen Kolom Internal yang sudah diperbaiki
+const Column = ({ title, tasks, user }) => {
     const taskIds = useMemo(() => tasks.map(task => task.id), [tasks]);
+    
+    // --- PERBAIKAN: Gunakan useDroppable agar kolom ini jadi area drop ---
+    const { setNodeRef } = useDroppable({ id: title });
 
     return (
-        <div className="bg-slate-800/50 p-4 rounded-lg w-full">
+        <div ref={setNodeRef} className="bg-slate-800/50 p-4 rounded-lg w-full">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2 border-b-2 border-slate-700 pb-2">
                 {title === 'Belum Dikerjakan' && '📝'}
                 {title === 'Lagi Dikerjakan' && '⚙️'}
@@ -26,14 +31,13 @@ const Column = ({ title, tasks, user }) => { // Tambahkan 'user' di sini
             <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
                 <div className="space-y-4 min-h-[100px]">
                     {tasks.map(task => (
-                        <TaskCard key={task.id} task={task} user={user} /> // Teruskan 'user' ke TaskCard
+                        <TaskCard key={task.id} task={task} user={user} />
                     ))}
                 </div>
             </SortableContext>
         </div>
     );
 };
-
 
 const KanbanBoard = ({ user }) => {
     const [tasks, setTasks] = useState([]);
@@ -43,7 +47,7 @@ const KanbanBoard = ({ user }) => {
     const [filterByTeam, setFilterByTeam] = useState('all');
     const [confirmation, setConfirmation] = useState({ isOpen: false, message: '', onConfirm: () => {} });
 
-    const sensors = useSensors(useSensor(PointerSensor));
+    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
     const fetchTasks = async () => {
         setLoading(true);
@@ -82,27 +86,30 @@ const KanbanBoard = ({ user }) => {
 
     const handleDragEnd = (event) => {
         const { active, over } = event;
-        if (!over || !active.data.current || !over.data.current) return;
-    
+
+        // --- PERBAIKAN: Sederhanakan pengecekan awal ---
+        if (!over || !active.data.current) return;
+
         const task = tasks.find(t => t.id === active.id);
+        // --- PERBAIKAN: Ambil status asal dari data drag item ---
         const sourceColumn = active.data.current.status;
         const destinationColumn = over.id;
-    
+
         if (sourceColumn === destinationColumn) return;
-    
+
         let confirmationMessage = '';
         let isValidMove = false;
-    
+
         if (user.role === 'DEVELOPER' && sourceColumn === 'Belum Dikerjakan' && destinationColumn === 'Lagi Dikerjakan') {
             confirmationMessage = `Yakin mau mulai mengerjakan task "${task.title}"?`;
             isValidMove = true;
         }
-    
+
         if (user.role === 'TEAM' && sourceColumn === 'Lagi Dikerjakan' && destinationColumn === 'Selesai') {
             confirmationMessage = `Yakin task "${task.title}" sudah selesai dengan benar?`;
             isValidMove = true;
         }
-    
+
         if (isValidMove) {
             setConfirmation({
                 isOpen: true,
@@ -174,7 +181,7 @@ const KanbanBoard = ({ user }) => {
                 onCancel={() => setConfirmation({ isOpen: false })} 
             />
             
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
                 {loading ? <p>Lagi ngambil data...</p> : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {Object.entries(columns).map(([status, tasksInColumn]) => (
