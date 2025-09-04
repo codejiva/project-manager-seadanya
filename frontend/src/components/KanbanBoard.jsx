@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { useDroppable } from '@dnd-kit/core'; // Import hook baru
+import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import TaskCard from './TaskCard';
@@ -12,11 +12,9 @@ import ConfirmationModal from './ConfirmationModal';
 
 const API_URL = '';
 
-// Komponen Kolom Internal yang sudah diperbaiki
+// Komponen Kolom Internal
 const Column = ({ title, tasks, user }) => {
     const taskIds = useMemo(() => tasks.map(task => task.id), [tasks]);
-    
-    // --- PERBAIKAN: Gunakan useDroppable agar kolom ini jadi area drop ---
     const { setNodeRef } = useDroppable({ id: title });
 
     return (
@@ -76,22 +74,35 @@ const KanbanBoard = ({ user }) => {
     };
 
     const handleStatusChange = async (taskId, newStatus) => {
+        const oldTasks = [...tasks];
+        
+        // Optimistic UI Update: Langsung ubah tampilan di frontend
+        setTasks(currentTasks => 
+            currentTasks.map(task => 
+                task.id === taskId ? { ...task, status: newStatus } : task
+            )
+        );
+
+        // Kirim perubahan ke backend di latar belakang
         try {
-            await axios.put(`${API_URL}/api/tasks/${taskId}/status`, { status: newStatus, userRole: user.role });
-            fetchTasks();
+            await axios.put(`${API_URL}/api/tasks/${taskId}/status`, { 
+                status: newStatus, 
+                userRole: user.role 
+            });
         } catch (error) {
+            // Jika gagal, kembalikan tampilan ke kondisi semula dan kasih notif
             alert(error.response?.data?.error || "Gagal update status");
+            console.error("Gagal update status, mengembalikan state:", error);
+            setTasks(oldTasks); 
         }
     };
 
     const handleDragEnd = (event) => {
         const { active, over } = event;
 
-        // --- PERBAIKAN: Sederhanakan pengecekan awal ---
         if (!over || !active.data.current) return;
 
         const task = tasks.find(t => t.id === active.id);
-        // --- PERBAIKAN: Ambil status asal dari data drag item ---
         const sourceColumn = active.data.current.status;
         const destinationColumn = over.id;
 
