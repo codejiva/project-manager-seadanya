@@ -1,8 +1,8 @@
 const PriorityBadge = ({ priority }) => {
     const styles = {
-        1: 'bg-green-500/20 text-green-400', // Rendah
-        2: 'bg-yellow-500/20 text-yellow-400', // Sedang
-        3: 'bg-red-500/20 text-red-400', // Tinggi
+        1: 'bg-green-500/20 text-green-400',
+        2: 'bg-yellow-500/20 text-yellow-400',
+        3: 'bg-red-500/20 text-red-400',
     };
     const text = { 1: 'Rendah', 2: 'Sedang', 3: 'Tinggi' };
     return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${styles[priority]}`}>{text[priority]}</span>;
@@ -10,18 +10,28 @@ const PriorityBadge = ({ priority }) => {
 
 const TaskCard = ({ task, user, onStatusChange }) => {
     const isDeveloper = user.role === 'DEVELOPER';
-
+    
+    // Logika untuk border warna berdasarkan prioritas
+    const priorityBorderStyle = {
+        1: 'border-l-4 border-green-500', // Rendah
+        2: 'border-l-4 border-yellow-500', // Sedang
+        3: 'border-l-4 border-red-500', // Tinggi
+    };
+    
     return (
-        <div className="bg-slate-700 p-4 rounded-lg shadow-lg">
+        <div className={`bg-slate-700 p-4 rounded-lg shadow-lg transition-transform duration-200 hover:scale-[1.02] ${priorityBorderStyle[task.priority]}`}>
             <div className="flex justify-between items-start mb-2">
-                <h4 className="font-bold text-lg">{task.title}</h4>
-                <PriorityBadge priority={task.priority} />
+                <h4 className="font-bold text-lg pr-2">{task.title}</h4>
+                <div className="flex-shrink-0">
+                    <PriorityBadge priority={task.priority} />
+                </div>
             </div>
-            <p className="text-sm text-slate-400 mb-3">{task.description}</p>
-            <div className="flex justify-between items-end text-xs text-slate-500 border-t border-slate-600 pt-2">
+
+            <p className="text-sm text-slate-400 mb-4 break-words">{task.description}</p>
+
+            <div className="flex justify-between items-end text-xs text-slate-500 border-t border-slate-600 pt-3 mt-3">
                 <div>
                     <p>Tim: <span className="font-bold text-slate-300">{task.team}</span></p>
-                    {/* Munculin username requester HANYA untuk developer */}
                     {isDeveloper && task.users && (
                         <p>Request oleh: <span className="font-bold text-slate-300">{task.users.username}</span></p>
                     )}
@@ -30,10 +40,10 @@ const TaskCard = ({ task, user, onStatusChange }) => {
                 {/* Logic untuk tombol aksi */}
                 <div>
                     {isDeveloper && task.status === 'Belum Dikerjakan' && (
-                        <button onClick={() => onStatusChange(task.id, 'Lagi Dikerjakan')} className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs">Kerjakan</button>
+                        <button onClick={() => onStatusChange(task.id, 'Lagi Dikerjakan')} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold">Kerjakan</button>
                     )}
                     {!isDeveloper && task.status === 'Lagi Dikerjakan' && (
-                         <button onClick={() => onStatusChange(task.id, 'Selesai')} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs">Selesaikan</button>
+                         <button onClick={() => onStatusChange(task.id, 'Selesai')} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-semibold">Selesaikan</button>
                     )}
                 </div>
             </div>

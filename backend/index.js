@@ -1,5 +1,3 @@
-// backend/index.js
-
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
@@ -16,11 +14,11 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANO
 
 // --- API ENDPOINTS ---
 
-// 1. Endpoint untuk Login
+// Endpoint untuk Login
 app.post('/api/login', async (req, res) => {
     console.log("--- Menerima request login ---");
     const { username, password } = req.body;
-
+    
     console.log("Data diterima dari frontend:", { username, password });
 
     if (!username || !password) {
@@ -43,23 +41,21 @@ app.post('/api/login', async (req, res) => {
         console.log("Hasil: Username tidak ditemukan di database.");
         return res.status(401).json({ error: 'Username tidak ditemukan' });
     }
-
+    
     console.log("User ditemukan di DB:", user);
 
     if (password !== user.password) {
         console.log("Hasil: Password salah.");
         return res.status(401).json({ error: 'Password salah' });
     }
-
+    
     console.log("Hasil: Login berhasil!");
     delete user.password;
     res.json({ message: 'Login berhasil', user });
 });
 
-
-// 2. Endpoint untuk mengambil semua Task (dengan logika role)
+// Endpoint untuk mengambil semua Task (dengan logika role)
 app.get('/api/tasks', async (req, res) => {
-    // Ambil info user dari header (ini cara simpel, nanti frontend yang kirim)
     const userRole = req.headers['x-user-role'];
     const userTeam = req.headers['x-user-team'];
 
@@ -68,10 +64,9 @@ app.get('/api/tasks', async (req, res) => {
         .select(`
             *,
             users ( username )
-        `) // Ambil username dari tabel users
+        `)
         .order('created_at', { ascending: false });
 
-    // Kalau bukan developer, filter berdasarkan timnya
     if (userRole === 'TEAM') {
         query = query.eq('team', userTeam);
     }
@@ -84,7 +79,7 @@ app.get('/api/tasks', async (req, res) => {
     res.json(data);
 });
 
-// 3. Endpoint untuk membuat Task baru
+// Endpoint untuk membuat Task baru
 app.post('/api/tasks', async (req, res) => {
     console.log("--- Menerima request task baru ---");
     const { title, description, team, priority, requester_id } = req.body;
@@ -108,20 +103,20 @@ app.post('/api/tasks', async (req, res) => {
     res.status(201).json(data[0]);
 });
 
-// 4. Endpoint untuk update status Task
+// Endpoint untuk update status Task
 app.put('/api/tasks/:id/status', async (req, res) => {
     const { id } = req.params;
     const { status, userRole } = req.body;
 
-    // --- LOGIKA BARU YANG LEBIH BENAR ---
-    // Jika yang request adalah developer, status baru HANYA BOLEH "Lagi Dikerjakan".
-    if (userRole === 'DEVELOPER' && status !== 'Lagi Dikerjakan') {
-        return res.status(403).json({ error: 'Developer hanya bisa mengubah status menjadi "Lagi Dikerjakan"' });
+    // --- LOGIKA WORKFLOW BARU ---
+    // Jika yang request adalah developer, status baru HANYA BOLEH "Belum Dikerjakan" atau "Lagi Dikerjakan".
+    if (userRole === 'DEVELOPER' && !['Belum Dikerjakan', 'Lagi Dikerjakan'].includes(status)) {
+        return res.status(403).json({ error: 'Developer hanya bisa mengubah status antara "Belum" dan "Lagi Dikerjakan".' });
     }
 
     // Jika yang request adalah tim, status baru HANYA BOLEH "Selesai".
     if (userRole === 'TEAM' && status !== 'Selesai') {
-        return res.status(403).json({ error: 'Tim hanya bisa mengubah status menjadi "Selesai"' });
+        return res.status(403).json({ error: 'Tim hanya bisa mengubah status menjadi "Selesai".' });
     }
     // --- AKHIR LOGIKA BARU ---
 
@@ -136,7 +131,6 @@ app.put('/api/tasks/:id/status', async (req, res) => {
     }
     res.json(data[0]);
 });
-
 
 app.listen(PORT, () => {
     console.log(`Server backend jalan di http://localhost:${PORT}`);

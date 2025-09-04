@@ -1,11 +1,9 @@
-// frontend/src/components/CreateTaskModal.jsx
-
 import { useState } from 'react';
 
 const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [priority, setPriority] = useState(2); // Default prioritas 'Sedang'
+    const [priority, setPriority] = useState(2);
 
     if (!isOpen) return null;
 
@@ -19,7 +17,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
             title,
             description,
             priority: parseInt(priority, 10),
-            team: userTeam // Tim diambil dari data user yang login
+            team: userTeam
         });
         // Reset form
         setTitle('');
@@ -28,15 +26,12 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
     };
 
     return (
-        // Overlay
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-center" onClick={onClose}>
-            {/* Modal Content */}
             <div className="bg-slate-800 p-8 rounded-lg shadow-xl w-full max-w-lg relative" onClick={e => e.stopPropagation()}>
                 <h2 className="text-2xl font-bold mb-6">Buat Kebutuhan Baru</h2>
                 <form onSubmit={handleSubmit}>
-                    {/* Judul */}
                     <div className="mb-4">
-                        <label className="block mb-2">Kebutuhan / Judul Task</label>
+                        <label className="block mb-2 text-slate-300">Kebutuhan / Judul Task</label>
                         <input
                             type="text"
                             value={title}
@@ -45,9 +40,8 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
                             placeholder="Contoh: Benerin API Login"
                         />
                     </div>
-                    {/* Deskripsi */}
                     <div className="mb-4">
-                        <label className="block mb-2">Contoh Hasil yang Diharapkan (Deskripsi)</label>
+                        <label className="block mb-2 text-slate-300">Contoh Hasil yang Diharapkan (Deskripsi)</label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
@@ -56,9 +50,8 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
                             placeholder="Contoh: Ketika hit API /login dengan data benar, harusnya dapat token."
                         ></textarea>
                     </div>
-                    {/* Prioritas */}
                     <div className="mb-6">
-                        <label className="block mb-2">Tingkat Prioritas</label>
+                        <label className="block mb-2 text-slate-300">Tingkat Prioritas</label>
                         <select
                             value={priority}
                             onChange={(e) => setPriority(e.target.value)}
@@ -69,7 +62,6 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
                             <option value="1">Rendah</option>
                         </select>
                     </div>
-                    {/* Buttons */}
                     <div className="flex justify-end gap-4">
                         <button type="button" onClick={onClose} className="bg-slate-600 hover:bg-slate-700 px-4 py-2 rounded">Batal</button>
                         <button type="submit" className="bg-cyan-600 hover:bg-cyan-700 font-bold px-4 py-2 rounded">Simpan</button>

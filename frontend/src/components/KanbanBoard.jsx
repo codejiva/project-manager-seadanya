@@ -1,6 +1,4 @@
-// frontend/src/components/KanbanBoard.jsx
-
-import { useState, useEffect, useMemo } from 'react'; // Tambahkan useMemo
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import TaskCard from './TaskCard';
 import CreateTaskModal from './CreateTaskModal';
@@ -12,13 +10,11 @@ const KanbanBoard = ({ user }) => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     
-    // --- BARU: State untuk sort & filter ---
+    // State untuk sort & filter
     const [sortBy, setSortBy] = useState('priority'); // 'priority', 'newest', 'oldest'
     const [filterByTeam, setFilterByTeam] = useState('all'); // 'all', 'TaLas', 'MisRo', 'MarTaBaK'
-    // --- AKHIR STATE BARU ---
 
     const fetchTasks = async () => {
-        // ... (fungsi fetchTasks tetap sama)
         setLoading(true);
         try {
             const response = await axios.get(`${API_URL}/api/tasks`, {
@@ -39,7 +35,6 @@ const KanbanBoard = ({ user }) => {
         fetchTasks();
     }, [user]);
 
-    // ... (fungsi handleStatusChange & handleCreateTask tetap sama)
     const handleStatusChange = async (taskId, newStatus) => {
         try {
             await axios.put(`${API_URL}/api/tasks/${taskId}/status`,
@@ -66,7 +61,7 @@ const KanbanBoard = ({ user }) => {
         }
     };
 
-    // --- BARU: Logika untuk memfilter dan mengurutkan task ---
+    // Logika untuk memfilter dan mengurutkan task
     const displayedTasks = useMemo(() => {
         let filteredTasks = [...tasks];
 
@@ -92,7 +87,6 @@ const KanbanBoard = ({ user }) => {
 
         return filteredTasks;
     }, [tasks, sortBy, filterByTeam, user.role]);
-    // --- AKHIR LOGIKA BARU ---
 
     // Gunakan `displayedTasks` bukan `tasks` untuk membuat kolom
     const columns = {
@@ -103,14 +97,14 @@ const KanbanBoard = ({ user }) => {
 
     return (
         <div>
-            {/* --- BARU: Kumpulan Tombol Kontrol (Filter, Sort, Buat Task) --- */}
+            {/* Kumpulan Tombol Kontrol (Filter, Sort, Buat Task) */}
             <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
                 <div className="flex items-center gap-4">
                     {/* Filter (hanya untuk developer) */}
                     {user.role === 'DEVELOPER' && (
                         <div>
-                            <label htmlFor="filter" className="text-sm mr-2">Filter Tim:</label>
-                            <select id="filter" value={filterByTeam} onChange={e => setFilterByTeam(e.target.value)} className="bg-slate-700 p-2 rounded">
+                            <label htmlFor="filter" className="text-sm mr-2 text-slate-400">Filter Tim:</label>
+                            <select id="filter" value={filterByTeam} onChange={e => setFilterByTeam(e.target.value)} className="bg-slate-700 p-2 rounded text-white border border-slate-600">
                                 <option value="all">Semua Tim</option>
                                 <option value="TaLas">TaLas</option>
                                 <option value="MisRo">MisRo</option>
@@ -120,8 +114,8 @@ const KanbanBoard = ({ user }) => {
                     )}
                     {/* Sort */}
                     <div>
-                        <label htmlFor="sort" className="text-sm mr-2">Urutkan:</label>
-                        <select id="sort" value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-slate-700 p-2 rounded">
+                        <label htmlFor="sort" className="text-sm mr-2 text-slate-400">Urutkan:</label>
+                        <select id="sort" value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-slate-700 p-2 rounded text-white border border-slate-600">
                             <option value="priority">Prioritas</option>
                             <option value="newest">Paling Baru</option>
                             <option value="oldest">Paling Lama</option>
@@ -136,15 +130,20 @@ const KanbanBoard = ({ user }) => {
                     </button>
                 )}
             </div>
-            {/* --- AKHIR BAGIAN BARU --- */}
 
             <CreateTaskModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleCreateTask} userTeam={user.team} />
             
             {loading ? <p>Lagi ngambil data...</p> : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {Object.entries(columns).map(([status, tasksInColumn]) => (
-                        <div key={status} className="bg-slate-800 p-4 rounded-lg">
-                            <h3 className="text-xl font-bold mb-4 border-b-2 border-slate-700 pb-2">{status} ({tasksInColumn.length})</h3>
+                        <div key={status} className="bg-slate-800/50 p-4 rounded-lg">
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 border-b-2 border-slate-700 pb-2">
+                                {status === 'Belum Dikerjakan' && '📝'}
+                                {status === 'Lagi Dikerjakan' && '⚙️'}
+                                {status === 'Selesai' && '✅'}
+                                {status} 
+                                <span className="text-sm font-normal bg-slate-700 text-slate-400 rounded-full px-2 py-0.5">{tasksInColumn.length}</span>
+                            </h3>
                             <div className="space-y-4">
                                 {tasksInColumn.map(task => (
                                     <TaskCard key={task.id} task={task} user={user} onStatusChange={handleStatusChange} />
