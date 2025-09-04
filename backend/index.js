@@ -113,13 +113,17 @@ app.put('/api/tasks/:id/status', async (req, res) => {
     const { id } = req.params;
     const { status, userRole } = req.body;
 
-    // Logika perizinan sesuai permintaan lo
-    if (userRole === 'DEVELOPER' && !['Lagi Dikerjain', 'Belum Dikerjain'].includes(status)) {
+    // --- LOGIKA BARU YANG LEBIH BENAR ---
+    // Jika yang request adalah developer, status baru HANYA BOLEH "Lagi Dikerjakan".
+    if (userRole === 'DEVELOPER' && status !== 'Lagi Dikerjakan') {
         return res.status(403).json({ error: 'Developer hanya bisa mengubah status menjadi "Lagi Dikerjakan"' });
     }
+
+    // Jika yang request adalah tim, status baru HANYA BOLEH "Selesai".
     if (userRole === 'TEAM' && status !== 'Selesai') {
         return res.status(403).json({ error: 'Tim hanya bisa mengubah status menjadi "Selesai"' });
     }
+    // --- AKHIR LOGIKA BARU ---
 
     const { data, error } = await supabase
         .from('tasks')

@@ -1,19 +1,24 @@
 // frontend/src/components/KanbanBoard.jsx
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react'; // Tambahkan useMemo
 import axios from 'axios';
 import TaskCard from './TaskCard';
-import CreateTaskModal from './CreateTaskModal'; // Kita akan buat file ini
+import CreateTaskModal from './CreateTaskModal';
 
 const API_URL = '';
 
 const KanbanBoard = ({ user }) => {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [isModalOpen, setIsModalOpen] = useState(false); // State untuk modal
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    // --- BARU: State untuk sort & filter ---
+    const [sortBy, setSortBy] = useState('priority'); // 'priority', 'newest', 'oldest'
+    const [filterByTeam, setFilterByTeam] = useState('all'); // 'all', 'TaLas', 'MisRo', 'MarTaBaK'
+    // --- AKHIR STATE BARU ---
 
     const fetchTasks = async () => {
-        // ... (fungsi fetchTasks tetap sama, tidak perlu diubah)
+        // ... (fungsi fetchTasks tetap sama)
         setLoading(true);
         try {
             const response = await axios.get(`${API_URL}/api/tasks`, {
@@ -33,8 +38,8 @@ const KanbanBoard = ({ user }) => {
     useEffect(() => {
         fetchTasks();
     }, [user]);
-    
-    // ... (fungsi handleStatusChange tetap sama)
+
+    // ... (fungsi handleStatusChange & handleCreateTask tetap sama)
     const handleStatusChange = async (taskId, newStatus) => {
         try {
             await axios.put(`${API_URL}/api/tasks/${taskId}/status`,
@@ -47,50 +52,94 @@ const KanbanBoard = ({ user }) => {
         }
     };
 
-
     const handleCreateTask = async (taskData) => {
         try {
-            // Kirim data task baru ke backend
             await axios.post(`${API_URL}/api/tasks`, {
                 ...taskData,
-                requester_id: user.id // Tambahkan ID user yang request
+                requester_id: user.id
             });
-            setIsModalOpen(false); // Tutup modal
-            fetchTasks(); // Ambil ulang data task biar yang baru muncul
+            setIsModalOpen(false);
+            fetchTasks();
         } catch (error) {
             alert(error.response?.data?.error || "Gagal membuat task baru");
             console.error("Error creating task:", error);
         }
     };
 
+    // --- BARU: Logika untuk memfilter dan mengurutkan task ---
+    const displayedTasks = useMemo(() => {
+        let filteredTasks = [...tasks];
+
+        // 1. Terapkan filter (hanya untuk developer)
+        if (user.role === 'DEVELOPER' && filterByTeam !== 'all') {
+            filteredTasks = filteredTasks.filter(task => task.team === filterByTeam);
+        }
+
+        // 2. Terapkan sortir
+        switch (sortBy) {
+            case 'priority':
+                filteredTasks.sort((a, b) => b.priority - a.priority);
+                break;
+            case 'newest':
+                filteredTasks.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                break;
+            case 'oldest':
+                filteredTasks.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                break;
+            default:
+                break;
+        }
+
+        return filteredTasks;
+    }, [tasks, sortBy, filterByTeam, user.role]);
+    // --- AKHIR LOGIKA BARU ---
+
+    // Gunakan `displayedTasks` bukan `tasks` untuk membuat kolom
     const columns = {
-        "Belum Dikerjakan": tasks.filter(t => t.status === 'Belum Dikerjakan'),
-        "Lagi Dikerjakan": tasks.filter(t => t.status === 'Lagi Dikerjakan'),
-        "Selesai": tasks.filter(t => t.status === 'Selesai'),
+        "Belum Dikerjakan": displayedTasks.filter(t => t.status === 'Belum Dikerjakan'),
+        "Lagi Dikerjakan": displayedTasks.filter(t => t.status === 'Lagi Dikerjakan'),
+        "Selesai": displayedTasks.filter(t => t.status === 'Selesai'),
     };
 
     return (
         <div>
-            {/* --- BAGIAN BARU DIMULAI DARI SINI --- */}
-            <div className="flex justify-end mb-6">
-                {user.role === 'TEAM' && ( // Hanya tim yang bisa buat task
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded"
-                    >
+            {/* --- BARU: Kumpulan Tombol Kontrol (Filter, Sort, Buat Task) --- */}
+            <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+                <div className="flex items-center gap-4">
+                    {/* Filter (hanya untuk developer) */}
+                    {user.role === 'DEVELOPER' && (
+                        <div>
+                            <label htmlFor="filter" className="text-sm mr-2">Filter Tim:</label>
+                            <select id="filter" value={filterByTeam} onChange={e => setFilterByTeam(e.target.value)} className="bg-slate-700 p-2 rounded">
+                                <option value="all">Semua Tim</option>
+                                <option value="TaLas">TaLas</option>
+                                <option value="MisRo">MisRo</option>
+                                <option value="MarTaBaK">MarTaBaK</option>
+                            </select>
+                        </div>
+                    )}
+                    {/* Sort */}
+                    <div>
+                        <label htmlFor="sort" className="text-sm mr-2">Urutkan:</label>
+                        <select id="sort" value={sortBy} onChange={e => setSortBy(e.target.value)} className="bg-slate-700 p-2 rounded">
+                            <option value="priority">Prioritas</option>
+                            <option value="newest">Paling Baru</option>
+                            <option value="oldest">Paling Lama</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Tombol Buat Task (hanya untuk tim) */}
+                {user.role === 'TEAM' && (
+                    <button onClick={() => setIsModalOpen(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded">
                         + Buat Task Baru
                     </button>
                 )}
             </div>
+            {/* --- AKHIR BAGIAN BARU --- */}
 
-            <CreateTaskModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSubmit={handleCreateTask}
-                userTeam={user.team}
-            />
-            {/* --- BAGIAN BARU SELESAI DI SINI --- */}
-
+            <CreateTaskModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleCreateTask} userTeam={user.team} />
+            
             {loading ? <p>Lagi ngambil data...</p> : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {Object.entries(columns).map(([status, tasksInColumn]) => (
@@ -98,12 +147,7 @@ const KanbanBoard = ({ user }) => {
                             <h3 className="text-xl font-bold mb-4 border-b-2 border-slate-700 pb-2">{status} ({tasksInColumn.length})</h3>
                             <div className="space-y-4">
                                 {tasksInColumn.map(task => (
-                                    <TaskCard
-                                        key={task.id}
-                                        task={task}
-                                        user={user}
-                                        onStatusChange={handleStatusChange}
-                                    />
+                                    <TaskCard key={task.id} task={task} user={user} onStatusChange={handleStatusChange} />
                                 ))}
                             </div>
                         </div>
