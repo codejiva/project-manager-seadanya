@@ -86,7 +86,13 @@ app.get('/api/tasks', async (req, res) => {
 
 // 3. Endpoint untuk membuat Task baru
 app.post('/api/tasks', async (req, res) => {
+    console.log("--- Menerima request task baru ---");
     const { title, description, team, priority, requester_id } = req.body;
+    console.log("Data diterima:", req.body);
+
+    if (!title || !team || !requester_id) {
+        return res.status(400).json({ error: "Judul, tim, dan ID requester harus diisi." });
+    }
 
     const { data, error } = await supabase
         .from('tasks')
@@ -94,8 +100,11 @@ app.post('/api/tasks', async (req, res) => {
         .select();
 
     if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("Error dari Supabase saat membuat task:", error.message);
+        return res.status(500).json({ error: "Gagal menyimpan task ke database." });
     }
+
+    console.log("Task berhasil dibuat:", data[0]);
     res.status(201).json(data[0]);
 });
 
