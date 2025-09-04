@@ -17,9 +17,14 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANO
 // --- API ENDPOINTS ---
 
 // 1. Endpoint untuk Login
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
+    console.log("--- Menerima request login ---");
     const { username, password } = req.body;
+
+    console.log("Data diterima dari frontend:", { username, password });
+
     if (!username || !password) {
+        console.log("Error: Username atau password kosong.");
         return res.status(400).json({ error: 'Username dan password harus diisi' });
     }
 
@@ -27,19 +32,26 @@ app.post('/login', async (req, res) => {
         .from('users')
         .select('*')
         .eq('username', username)
-        .single(); // .single() untuk ambil satu data aja
+        .single();
 
-    if (error || !user) {
+    if (error) {
+        console.error("Error dari Supabase saat mencari user:", error.message);
+        return res.status(500).json({ error: "Terjadi kesalahan pada server saat mencari user." });
+    }
+
+    if (!user) {
+        console.log("Hasil: Username tidak ditemukan di database.");
         return res.status(401).json({ error: 'Username tidak ditemukan' });
     }
 
-    // Di aplikasi nyata, bandingkan password yang di-hash. Untuk simplisitas, kita samakan langsung.
-    // const passwordMatch = await bcrypt.compare(password, user.password);
-    if (password !== user.password) { // Ganti ini dengan bcrypt di production
+    console.log("User ditemukan di DB:", user);
+
+    if (password !== user.password) {
+        console.log("Hasil: Password salah.");
         return res.status(401).json({ error: 'Password salah' });
     }
 
-    // Hapus password dari objek user sebelum dikirim ke frontend
+    console.log("Hasil: Login berhasil!");
     delete user.password;
     res.json({ message: 'Login berhasil', user });
 });
