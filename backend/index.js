@@ -9,7 +9,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3001;
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-// ? --- AUTH ---
+// --- AUTH ---
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username dan password harus diisi' });
@@ -20,7 +20,7 @@ app.post('/api/login', async (req, res) => {
     res.json({ message: 'Login berhasil', user });
 });
 
-// ? --- TASKS ---
+// --- TASKS ---
 app.get('/api/tasks', async (req, res) => {
     const userRole = req.headers['x-user-role'];
     const userTeam = req.headers['x-user-team'];
@@ -84,7 +84,7 @@ app.put('/api/tasks/:id/status', async (req, res) => {
     res.json(data[0]);
 });
 
-// ? --- COMMENTS ---
+// --- COMMENTS ---
 app.get('/api/tasks/:id/comments', async (req, res) => {
     const { id } = req.params;
     const { data, error } = await supabase.from('comments').select(`*, users (username)`).eq('task_id', id).order('created_at', { ascending: true });
@@ -98,6 +98,29 @@ app.post('/api/tasks/:id/comments', async (req, res) => {
     const { data, error } = await supabase.from('comments').insert([{ content, task_id, user_id }]).select(`*, users (username)`).single();
     if (error) return res.status(500).json({ error: error.message });
     res.status(201).json(data);
+});
+
+// --- ATTACHMENTS ---
+app.get('/api/tasks/:id/attachments', async (req, res) => {
+    const { id: task_id } = req.params;
+    const { data, error } = await supabase.from('attachments').select(`*, users (username)`).eq('task_id', task_id).order('created_at', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+app.post('/api/tasks/:id/attachments', async (req, res) => {
+    const { id: task_id } = req.params;
+    const { file_name, file_path, file_type, file_size, user_id } = req.body;
+    const { data, error } = await supabase.from('attachments').insert([{ file_name, file_path, file_type, file_size, task_id, user_id }]).select(`*, users (username)`).single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.status(201).json(data);
+});
+
+app.delete('/api/attachments/:id', async (req, res) => {
+    const { id } = req.params;
+    const { error: dbError } = await supabase.from('attachments').delete().eq('id', id);
+    if (dbError) return res.status(500).json({ error: dbError.message });
+    res.status(204).send();
 });
 
 app.listen(PORT, () => console.log(`Server jalan di http://localhost:${PORT}`));
