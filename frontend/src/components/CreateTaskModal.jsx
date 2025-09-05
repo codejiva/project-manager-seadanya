@@ -22,37 +22,38 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam, user }) => {
 
         setUploading(true);
         
-        // --- PERBAIKAN: Bungkus semua proses di dalam try...catch...finally ---
         try {
             const uploadedFiles = [];
             for (const file of files) {
                 const filePath = `${user.username}/${Date.now()}-${file.name}`;
                 
-                // Upload per file, jika satu gagal, yang lain tetap lanjut
                 const { error: uploadError } = await supabase.storage.from('attachments').upload(filePath, file);
                 
                 if (uploadError) {
                     console.error("Error uploading file:", uploadError);
                     alert(`Gagal mengupload file: ${file.name}`);
-                    continue; // Lanjut ke file berikutnya jika ada
+                    continue;
                 }
                 
-                const { data: { publicUrl } } = supabase.storage.from('attachments').getPublicUrl(filePath);
+                // --- PERBAIKAN: Cek data URL dengan lebih aman ---
+                const { data: urlData, error: urlError } = supabase.storage.from('attachments').getPublicUrl(filePath);
+
+                if (urlError || !urlData || !urlData.publicUrl) {
+                    throw urlError || new Error("Gagal mendapatkan URL publik untuk file: " + file.name);
+                }
                 
                 uploadedFiles.push({
                     file_name: file.name,
-                    file_path: publicUrl,
+                    file_path: urlData.publicUrl,
                     file_type: file.type,
                     file_size: file.size,
                 });
             }
             setAttachments(prev => [...prev, ...uploadedFiles]);
         } catch (error) {
-            // Catch error yang lebih general jika ada
             console.error("Terjadi kesalahan tak terduga saat upload:", error);
             alert("Terjadi kesalahan tak terduga saat upload.");
         } finally {
-            // Blok ini DIJAMIN akan selalu dijalankan
             setUploading(false);
         }
     };
