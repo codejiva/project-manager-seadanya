@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
+// Inisialisasi Supabase client HANYA untuk upload file
 const supabase = createClient(
     import.meta.env.VITE_SUPABASE_URL,
     import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -25,19 +26,21 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam, user }) => {
 
         for (const file of files) {
             const filePath = `${user.username}/${Date.now()}-${file.name}`;
-            const { error: uploadError } = await supabase.storage.from('attachments').upload(filePath, file);
-            if (uploadError) {
-                console.error("Error uploading file:", uploadError);
+            try {
+                const { error: uploadError } = await supabase.storage.from('attachments').upload(filePath, file);
+                if (uploadError) throw uploadError;
+                
+                const { data: { publicUrl } } = supabase.storage.from('attachments').getPublicUrl(filePath);
+                uploadedFiles.push({
+                    file_name: file.name,
+                    file_path: publicUrl,
+                    file_type: file.type,
+                    file_size: file.size,
+                });
+            } catch (error) {
+                console.error("Error uploading file:", error);
                 alert(`Gagal mengupload file: ${file.name}`);
-                continue;
             }
-            const { data: { publicUrl } } = supabase.storage.from('attachments').getPublicUrl(filePath);
-            uploadedFiles.push({
-                file_name: file.name,
-                file_path: publicUrl,
-                file_type: file.type,
-                file_size: file.size,
-            });
         }
         setAttachments(prev => [...prev, ...uploadedFiles]);
         setUploading(false);
@@ -53,43 +56,77 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam, user }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!title) return alert('Judul kebutuhan harus diisi!');
+        if (!title) {
+            alert('Judul kebutuhan harus diisi!');
+            return;
+        }
         
         onSubmit({
-            title, description,
+            title, 
+            description,
             priority: parseInt(priority, 10),
             team: userTeam,
             due_date: dueDate || null,
-            attachments: attachments, // Kirim data attachments
+            attachments: attachments,
         });
         resetForm();
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-slate-800 p-8 rounded-lg shadow-xl w-full max-w-lg relative" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-800 p-8 rounded-lg shadow-xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
                 <h2 className="text-2xl font-bold mb-6">Buat Kebutuhan Baru</h2>
                 <form onSubmit={handleSubmit}>
-                    {/* ... (Input Judul, Deskripsi, Deadline, Prioritas tidak berubah) ... */}
+                    {/* Input Judul */}
                     <div className="mb-4">
+                        <label className="block mb-2 text-slate-300">Kebutuhan / Judul Task</label>
+                        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500" placeholder="Contoh: Benerin API Login" />
+                    </div>
+
+                    {/* Input Deskripsi */}
+                    <div className="mb-4">
+                        <label className="block mb-2 text-slate-300">Contoh Hasil yang Diharapkan (Deskripsi)</label>
+                        <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500" rows="4" placeholder="Contoh: Ketika hit API /login, harusnya dapat token." />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        {/* Input Deadline */}
+                        <div>
+                            <label className="block mb-2 text-slate-300">Tanggal Tenggat (Opsional)</label>
+                            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        {/* Input Prioritas */}
+                        <div>
+                            <label className="block mb-2 text-slate-300">Tingkat Prioritas</label>
+                            <select value={priority} onChange={(e) => setPriority(e.target.value)} className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500">
+                                <option value="3">Tinggi</option>
+                                <option value="2">Sedang</option>
+                                <option value="1">Rendah</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Input Attachment */}
+                    <div className="mb-6">
                         <label className="block mb-2 text-slate-300">Lampiran (Opsional)</label>
                         <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 text-center">
                             <input type="file" id="file-upload" multiple className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                            <label htmlFor="file-upload" className="cursor-pointer text-cyan-400 hover:text-cyan-300">
-                                {uploading ? 'Mengupload...' : 'Pilih file...'}
+                            <label htmlFor="file-upload" className="cursor-pointer text-cyan-400 hover:text-cyan-300 font-semibold">
+                                {uploading ? 'Mengupload...' : 'Pilih file untuk diupload'}
                             </label>
                             <div className="mt-2 text-xs text-slate-400 space-y-1">
                                 {attachments.map((file, index) => (
-                                    <p key={index}>✓ {file.file_name}</p>
+                                    <div key={index} className="bg-slate-700 p-1 rounded text-left px-2">✓ {file.file_name}</div>
                                 ))}
                             </div>
                         </div>
                     </div>
                     
-                    <div className="flex justify-end gap-4 mt-8">
-                        <button type="button" onClick={onClose} className="bg-slate-600 hover:bg-slate-700 px-4 py-2 rounded">Batal</button>
+                    {/* Tombol Aksi */}
+                    <div className="flex justify-end gap-4 mt-8 pt-4 border-t border-slate-700">
+                        <button type="button" onClick={onClose} className="bg-slate-600 hover:bg-slate-700 px-4 py-2 rounded font-semibold">Batal</button>
                         <button type="submit" className="bg-cyan-600 hover:bg-cyan-700 font-bold px-4 py-2 rounded" disabled={uploading}>
-                            {uploading ? 'Menunggu Upload...' : 'Simpan'}
+                            {uploading ? 'Menunggu Upload...' : 'Simpan Tugas'}
                         </button>
                     </div>
                 </form>
