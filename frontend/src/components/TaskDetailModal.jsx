@@ -1,3 +1,5 @@
+// frontend/src/components/TaskDetailModal.jsx
+
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -9,6 +11,9 @@ const TaskDetailModal = ({ task, user, onClose, onUpdate, onDelete }) => {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
     const [loadingComments, setLoadingComments] = useState(true);
+
+    // --- LOGIKA BARU: Cek kepemilikan task ---
+    const isTeamOwner = user.role === 'TEAM' && user.team === task.team;
 
     useEffect(() => {
         if (task.id) {
@@ -128,9 +133,16 @@ const TaskDetailModal = ({ task, user, onClose, onUpdate, onDelete }) => {
                                 <button onClick={() => setIsEditing(false)} className="bg-slate-600 hover:bg-slate-700 px-4 py-2 rounded">Batal</button>
                             </div>
                         ) : (
-                            <button onClick={() => setIsEditing(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold">Edit Task</button>
+                            // --- PERUBAHAN LOGIKA: Tombol Edit hanya untuk tim pemilik & jika task belum selesai ---
+                            isTeamOwner && task.status !== 'Selesai' && (
+                                <button onClick={() => setIsEditing(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold">Edit Task</button>
+                            )
                         )}
-                        {user.role === 'DEVELOPER' && <button onClick={handleDelete} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold">Hapus Task</button>}
+                        
+                        {/* --- PERUBAHAN LOGIKA: Tombol Hapus hanya untuk tim pemilik --- */}
+                        {isTeamOwner && (
+                            <button onClick={handleDelete} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold">Hapus Task</button>
+                        )}
                     </div>
                 </div>
             </div>
