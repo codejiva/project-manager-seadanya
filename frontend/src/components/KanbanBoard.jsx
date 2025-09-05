@@ -188,10 +188,27 @@ const KanbanBoard = ({ user }) => {
                 )}
             </div>
 
-            <CreateTaskModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSubmit={handleCreateTask} userTeam={user.team} />
-            <ConfirmationModal isOpen={confirmation.isOpen} message={confirmation.message} onConfirm={confirmation.onConfirm} onCancel={() => setConfirmation({ isOpen: false })} />
+            <CreateTaskModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onSubmit={handleCreateTask}
+                userTeam={user.team}
+                user={user} 
+            />
+            <ConfirmationModal 
+                isOpen={confirmation.isOpen} 
+                message={confirmation.message} 
+                onConfirm={confirmation.onConfirm} 
+                onCancel={() => setConfirmation({ isOpen: false })} 
+            />
             {selectedTask && (
-                <TaskDetailModal task={selectedTask} user={user} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} />
+                <TaskDetailModal 
+                    task={selectedTask} 
+                    user={user} 
+                    onClose={() => setSelectedTask(null)} 
+                    onUpdate={handleUpdateTask} 
+                    onDelete={handleDeleteTask} 
+                />
             )}
             
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
