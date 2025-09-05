@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const { Resend } = require('resend');
 require('dotenv').config();
 
 const app = express();
@@ -8,6 +9,10 @@ app.use(cors());
 app.use(express.json());
 const PORT = process.env.PORT || 3001;
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+// --- SETUP RESEND ---
+const resend = new Resend(process.env.RESEND_API_KEY);
+const SENDER_EMAIL = 'onboarding@resend.dev';
 
 // --- AUTH ---
 app.post('/api/login', async (req, res) => {
@@ -54,9 +59,73 @@ app.get('/api/tasks', async (req, res) => {
 app.post('/api/tasks', async (req, res) => {
     const { title, description, team, priority, requester_id, due_date } = req.body;
     if (!title || !team || !requester_id) return res.status(400).json({ error: "Judul, tim, dan ID requester harus diisi." });
-    const { data, error } = await supabase.from('tasks').insert([{ title, description, team, priority, requester_id, due_date }]).select();
+    
+    const { data: taskData, error } = await supabase.from('tasks').insert([{ title, description, team, priority, requester_id, due_date }]).select().single();
     if (error) return res.status(500).json({ error: "Gagal menyimpan task ke database." });
-    res.status(201).json(data[0]);
+    
+    // --- NOTIFIKASI EMAIL: Request Baru ---
+    try {
+        const { data: devUser } = await supabase.from('users').select('email').eq('role', 'DEVELOPER').single();
+        const { data: requesterUser } = await supabase.from('users').select('username').eq('id', requester_id).single();
+        
+        if (devUser && devUser.email) {
+            await resend.emails.send({
+                from: SENDER_EMAIL,
+                to: devUser.email,
+                subject: `[TUGAS BARU] Request dari tim ${team}: ${title}`,
+                html: `<p>Halo Bung, ada request tugas baru dari <strong>${requesterUser.username}</strong> (Tim ${team}).</p><p><strong>Judul:</strong> ${title}</p><p><strong>Deskripsi:</strong> ${description || 'Tidak ada'}</p><p>Silakan cek di aplikasi.</p>`,
+            });
+        }
+    } catch (emailError) { console.error("Gagal kirim email notif task baru:", emailError); }
+    // --- AKHIR NOTIFIKASI EMAIL ---
+
+    res.status(201).json(taskData);
+});
+
+app.put('/api/tasks/:id/status', async (req, res) => {
+    const { id } = req.params;
+    const { status: newStatus, userRole } = req.body;
+    
+    const { data: currentTask, error: findError } = await supabase.from('tasks').select('status, team, title').eq('id', id).single();
+    if (findError || !currentTask) return res.status(404).json({ error: "Task tidak ditemukan." });
+
+    if (userRole === 'DEVELOPER' && !['Belum Dikerjakan', 'Lagi Dikerjakan'].includes(newStatus)) return res.status(403).json({ error: 'Developer hanya bisa mengubah status antara "Belum" dan "Lagi Dikerjakan".' });
+    if (userRole === 'TEAM' && newStatus !== 'Selesai') return res.status(403).json({ error: 'Tim hanya bisa mengubah status menjadi "Selesai".' });
+
+    const { data, error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', id).select();
+    if (error) return res.status(500).json({ error: error.message });
+
+    // --- NOTIFIKASI EMAIL: Perubahan Status ---
+    try {
+        if (newStatus === 'Lagi Dikerjakan' && currentTask.status === 'Belum Dikerjakan') {
+            const { data: teamUsers } = await supabase.from('users').select('email').eq('team', currentTask.team);
+            if (teamUsers && teamUsers.length > 0) {
+                const recipientEmails = teamUsers.map(u => u.email).filter(Boolean);
+                if (recipientEmails.length > 0) {
+                    await resend.emails.send({
+                        from: SENDER_EMAIL,
+                        to: recipientEmails,
+                        subject: `[DIKERJAKAN] Tugas "${currentTask.title}"`,
+                        html: `<p>Halo Tim ${currentTask.team},</p><p>Tugas dengan judul "<strong>${currentTask.title}</strong>" sudah mulai dikerjakan oleh developer.</p>`,
+                    });
+                }
+            }
+        }
+        if (newStatus === 'Selesai' && currentTask.status === 'Lagi Dikerjakan') {
+            const { data: devUser } = await supabase.from('users').select('email').eq('role', 'DEVELOPER').single();
+            if (devUser && devUser.email) {
+                await resend.emails.send({
+                    from: SENDER_EMAIL,
+                    to: devUser.email,
+                    subject: `[SELESAI] Tugas "${currentTask.title}"`,
+                    html: `<p>Mantap, Bung!</p><p>Tugas dengan judul "<strong>${currentTask.title}</strong>" telah disetujui dan diselesaikan oleh Tim ${currentTask.team}.</p>`,
+                });
+            }
+        }
+    } catch (emailError) { console.error("Gagal kirim email notif status:", emailError); }
+    // --- AKHIR NOTIFIKASI EMAIL ---
+
+    res.json(data[0]);
 });
 
 app.put('/api/tasks/:id', async (req, res) => {
@@ -72,16 +141,6 @@ app.delete('/api/tasks/:id', async (req, res) => {
     const { error } = await supabase.from('tasks').delete().eq('id', id);
     if (error) return res.status(500).json({ error: error.message });
     res.status(204).send();
-});
-
-app.put('/api/tasks/:id/status', async (req, res) => {
-    const { id } = req.params;
-    const { status, userRole } = req.body;
-    if (userRole === 'DEVELOPER' && !['Belum Dikerjakan', 'Lagi Dikerjakan'].includes(status)) return res.status(403).json({ error: 'Developer hanya bisa mengubah status antara "Belum" dan "Lagi Dikerjakan".' });
-    if (userRole === 'TEAM' && status !== 'Selesai') return res.status(403).json({ error: 'Tim hanya bisa mengubah status menjadi "Selesai".' });
-    const { data, error } = await supabase.from('tasks').update({ status }).eq('id', id).select();
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data[0]);
 });
 
 // --- COMMENTS ---
