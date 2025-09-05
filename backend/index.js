@@ -6,132 +6,98 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-
 const PORT = process.env.PORT || 3001;
-
-// Koneksi ke Supabase
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-// --- API ENDPOINTS ---
-
-// Endpoint untuk Login
+// ? --- AUTH ---
 app.post('/api/login', async (req, res) => {
-    console.log("--- Menerima request login ---");
     const { username, password } = req.body;
-    
-    console.log("Data diterima dari frontend:", { username, password });
-
-    if (!username || !password) {
-        console.log("Error: Username atau password kosong.");
-        return res.status(400).json({ error: 'Username dan password harus diisi' });
-    }
-
-    const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('username', username)
-        .single();
-
-    if (error) {
-        console.error("Error dari Supabase saat mencari user:", error.message);
-        return res.status(500).json({ error: "Terjadi kesalahan pada server saat mencari user." });
-    }
-
-    if (!user) {
-        console.log("Hasil: Username tidak ditemukan di database.");
-        return res.status(401).json({ error: 'Username tidak ditemukan' });
-    }
-    
-    console.log("User ditemukan di DB:", user);
-
-    if (password !== user.password) {
-        console.log("Hasil: Password salah.");
-        return res.status(401).json({ error: 'Password salah' });
-    }
-    
-    console.log("Hasil: Login berhasil!");
+    if (!username || !password) return res.status(400).json({ error: 'Username dan password harus diisi' });
+    const { data: user, error } = await supabase.from('users').select('*').eq('username', username).single();
+    if (error || !user) return res.status(401).json({ error: 'Username tidak ditemukan' });
+    if (password !== user.password) return res.status(401).json({ error: 'Password salah' });
     delete user.password;
     res.json({ message: 'Login berhasil', user });
 });
 
-// Endpoint untuk mengambil semua Task (dengan logika role)
+// ? --- TASKS ---
 app.get('/api/tasks', async (req, res) => {
     const userRole = req.headers['x-user-role'];
     const userTeam = req.headers['x-user-team'];
 
-    let query = supabase
-        .from('tasks')
-        .select(`
-            *,
-            users ( username )
-        `)
-        .order('created_at', { ascending: false });
-
+    let { data, error } = await supabase.rpc('get_tasks_with_comment_count');
+    if (error) return res.status(500).json({ error: "Gagal mengambil data dari database: " + error.message });
+    
     if (userRole === 'TEAM') {
-        query = query.eq('team', userTeam);
+        data = data.filter(task => task.team === userTeam);
     }
+    
+    const userIds = [...new Set(data.map(task => task.requester_id).filter(id => id != null))];
+    if (userIds.length === 0) return res.json(data);
 
-    const { data, error } = await query;
+    const { data: users, error: userError } = await supabase.from('users').select('id, username').in('id', userIds);
+    if (userError) return res.status(500).json({ error: "Gagal mengambil data user." });
 
-    if (error) {
-        return res.status(500).json({ error: error.message });
-    }
-    res.json(data);
+    const userMap = users.reduce((acc, user) => {
+        acc[user.id] = user.username;
+        return acc;
+    }, {});
+
+    const finalData = data.map(task => ({
+        ...task,
+        users: { username: userMap[task.requester_id] || 'N/A' }
+    }));
+    
+    res.json(finalData);
 });
 
-// Endpoint untuk membuat Task baru
 app.post('/api/tasks', async (req, res) => {
-    console.log("--- Menerima request task baru ---");
-    const { title, description, team, priority, requester_id } = req.body;
-    console.log("Data diterima:", req.body);
-
-    if (!title || !team || !requester_id) {
-        return res.status(400).json({ error: "Judul, tim, dan ID requester harus diisi." });
-    }
-
-    const { data, error } = await supabase
-        .from('tasks')
-        .insert([{ title, description, team, priority, requester_id }])
-        .select();
-
-    if (error) {
-        console.error("Error dari Supabase saat membuat task:", error.message);
-        return res.status(500).json({ error: "Gagal menyimpan task ke database." });
-    }
-
-    console.log("Task berhasil dibuat:", data[0]);
+    const { title, description, team, priority, requester_id, due_date } = req.body;
+    if (!title || !team || !requester_id) return res.status(400).json({ error: "Judul, tim, dan ID requester harus diisi." });
+    const { data, error } = await supabase.from('tasks').insert([{ title, description, team, priority, requester_id, due_date }]).select();
+    if (error) return res.status(500).json({ error: "Gagal menyimpan task ke database." });
     res.status(201).json(data[0]);
 });
 
-// Endpoint untuk update status Task
+app.put('/api/tasks/:id', async (req, res) => {
+    const { id } = req.params;
+    const { title, description, priority, due_date } = req.body;
+    const { data, error } = await supabase.from('tasks').update({ title, description, priority, due_date }).eq('id', id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+});
+
+app.delete('/api/tasks/:id', async (req, res) => {
+    const { id } = req.params;
+    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.status(204).send();
+});
+
 app.put('/api/tasks/:id/status', async (req, res) => {
     const { id } = req.params;
     const { status, userRole } = req.body;
-
-    // --- LOGIKA WORKFLOW BARU ---
-    // Jika yang request adalah developer, status baru HANYA BOLEH "Belum Dikerjakan" atau "Lagi Dikerjakan".
-    if (userRole === 'DEVELOPER' && !['Belum Dikerjakan', 'Lagi Dikerjakan'].includes(status)) {
-        return res.status(403).json({ error: 'Developer hanya bisa mengubah status antara "Belum" dan "Lagi Dikerjakan".' });
-    }
-
-    // Jika yang request adalah tim, status baru HANYA BOLEH "Selesai".
-    if (userRole === 'TEAM' && status !== 'Selesai') {
-        return res.status(403).json({ error: 'Tim hanya bisa mengubah status menjadi "Selesai".' });
-    }
-    // --- AKHIR LOGIKA BARU ---
-
-    const { data, error } = await supabase
-        .from('tasks')
-        .update({ status })
-        .eq('id', id)
-        .select();
-
-    if (error) {
-        return res.status(500).json({ error: error.message });
-    }
+    if (userRole === 'DEVELOPER' && !['Belum Dikerjakan', 'Lagi Dikerjakan'].includes(status)) return res.status(403).json({ error: 'Developer hanya bisa mengubah status antara "Belum" dan "Lagi Dikerjakan".' });
+    if (userRole === 'TEAM' && status !== 'Selesai') return res.status(403).json({ error: 'Tim hanya bisa mengubah status menjadi "Selesai".' });
+    const { data, error } = await supabase.from('tasks').update({ status }).eq('id', id).select();
+    if (error) return res.status(500).json({ error: error.message });
     res.json(data[0]);
 });
 
-app.listen(PORT, () => {
-    console.log(`Server backend jalan di http://localhost:${PORT}`);
+// ? --- COMMENTS ---
+app.get('/api/tasks/:id/comments', async (req, res) => {
+    const { id } = req.params;
+    const { data, error } = await supabase.from('comments').select(`*, users (username)`).eq('task_id', id).order('created_at', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
 });
+
+app.post('/api/tasks/:id/comments', async (req, res) => {
+    const { id: task_id } = req.params;
+    const { content, user_id } = req.body;
+    const { data, error } = await supabase.from('comments').insert([{ content, task_id, user_id }]).select(`*, users (username)`).single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.status(201).json(data);
+});
+
+app.listen(PORT, () => console.log(`Server jalan di http://localhost:${PORT}`));

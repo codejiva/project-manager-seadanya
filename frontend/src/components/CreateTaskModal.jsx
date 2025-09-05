@@ -4,6 +4,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState(2);
+    const [dueDate, setDueDate] = useState('');
 
     if (!isOpen) return null;
 
@@ -14,15 +15,15 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
             return;
         }
         onSubmit({
-            title,
-            description,
+            title, description,
             priority: parseInt(priority, 10),
-            team: userTeam
+            team: userTeam,
+            due_date: dueDate || null
         });
-        // Reset form
         setTitle('');
         setDescription('');
         setPriority(2);
+        setDueDate('');
     };
 
     return (
@@ -32,31 +33,19 @@ const CreateTaskModal = ({ isOpen, onClose, onSubmit, userTeam }) => {
                 <form onSubmit={handleSubmit}>
                     <div className="mb-4">
                         <label className="block mb-2 text-slate-300">Kebutuhan / Judul Task</label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500"
-                            placeholder="Contoh: Benerin API Login"
-                        />
+                        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500" placeholder="Contoh: Benerin API Login" />
                     </div>
                     <div className="mb-4">
                         <label className="block mb-2 text-slate-300">Contoh Hasil yang Diharapkan (Deskripsi)</label>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500"
-                            rows="4"
-                            placeholder="Contoh: Ketika hit API /login dengan data benar, harusnya dapat token."
-                        ></textarea>
+                        <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500" rows="4" placeholder="Contoh: Ketika hit API /login, harusnya dapat token." />
+                    </div>
+                    <div className="mb-4">
+                        <label className="block mb-2 text-slate-300">Tanggal Tenggat (Opsional)</label>
+                        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500" />
                     </div>
                     <div className="mb-6">
                         <label className="block mb-2 text-slate-300">Tingkat Prioritas</label>
-                        <select
-                            value={priority}
-                            onChange={(e) => setPriority(e.target.value)}
-                            className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500"
-                        >
+                        <select value={priority} onChange={(e) => setPriority(e.target.value)} className="w-full p-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-cyan-500">
                             <option value="3">Tinggi</option>
                             <option value="2">Sedang</option>
                             <option value="1">Rendah</option>

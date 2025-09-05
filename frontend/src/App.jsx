@@ -6,7 +6,6 @@ function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Cek apakah ada data user di local storage saat pertama kali load
     const loggedInUser = localStorage.getItem('user');
     if (loggedInUser) {
       setUser(JSON.parse(loggedInUser));
@@ -21,16 +20,17 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     setUser(null);
+    window.location.reload();
   };
 
   return (
     <div className="bg-slate-900 text-white min-h-screen">
-      <header className="p-4 bg-slate-800 shadow-md flex justify-between items-center">
+      <header className="p-4 bg-slate-800 shadow-md flex justify-between items-center sticky top-0 z-10">
         <h1 className="text-2xl font-bold">Web Manajemen Proyek Biar Bung Nggak Tinggal Meninggal</h1>
         {user && (
           <div className='flex items-center gap-4'>
             <p>Halo, <span className='font-bold'>{user.username}</span> ({user.team || user.role})</p>
-            <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded">Logout</button>
+            <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded font-semibold">Logout</button>
           </div>
         )}
       </header>

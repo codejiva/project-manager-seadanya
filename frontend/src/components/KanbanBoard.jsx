@@ -1,19 +1,18 @@
 // frontend/src/components/KanbanBoard.jsx
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-
 import TaskCard from './TaskCard';
 import CreateTaskModal from './CreateTaskModal';
 import ConfirmationModal from './ConfirmationModal';
+import TaskDetailModal from './TaskDetailModal';
 
-const API_URL = '';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
-// Komponen Kolom Internal
-const Column = ({ title, tasks, user }) => {
+const Column = ({ title, tasks, onCardClick }) => {
     const taskIds = useMemo(() => tasks.map(task => task.id), [tasks]);
     const { setNodeRef } = useDroppable({ id: title });
 
@@ -29,7 +28,7 @@ const Column = ({ title, tasks, user }) => {
             <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
                 <div className="space-y-4 min-h-[100px]">
                     {tasks.map(task => (
-                        <TaskCard key={task.id} task={task} user={user} />
+                        <TaskCard key={task.id} task={task} onClick={() => onCardClick(task)} />
                     ))}
                 </div>
             </SortableContext>
@@ -40,87 +39,68 @@ const Column = ({ title, tasks, user }) => {
 const KanbanBoard = ({ user }) => {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [selectedTask, setSelectedTask] = useState(null);
     const [sortBy, setSortBy] = useState('priority');
     const [filterByTeam, setFilterByTeam] = useState('all');
     const [confirmation, setConfirmation] = useState({ isOpen: false, message: '', onConfirm: () => {} });
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-    const fetchTasks = async () => {
-        setLoading(true);
+    const fetchTasks = useCallback(async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/tasks`, {
-                headers: { 'x-user-role': user.role, 'x-user-team': user.team }
-            });
-            setTasks(response.data);
-        } catch (error) {
-            console.error("Gagal mengambil data task:", error);
-        } finally {
-            setLoading(false);
+            const { data } = await axios.get(`${API_URL}/api/tasks`, { headers: { 'x-user-role': user.role, 'x-user-team': user.team }});
+            setTasks(data);
+        } catch (error) { 
+            console.error("Gagal mengambil data task:", error); 
+        } finally { 
+            setLoading(false); 
         }
-    };
+    }, [user.role, user.team]);
 
-    useEffect(() => { fetchTasks(); }, [user]);
+    useEffect(() => { 
+        fetchTasks(); 
+    }, [fetchTasks]);
 
     const handleCreateTask = async (taskData) => {
         try {
             await axios.post(`${API_URL}/api/tasks`, { ...taskData, requester_id: user.id });
-            setIsModalOpen(false);
+            setIsCreateModalOpen(false);
             fetchTasks();
-        } catch (error) {
-            alert(error.response?.data?.error || "Gagal membuat task baru");
+        } catch (error) { 
+            alert(error.response?.data?.error || "Gagal membuat task baru"); 
         }
     };
 
     const handleStatusChange = async (taskId, newStatus) => {
         const oldTasks = [...tasks];
-        
-        // Optimistic UI Update: Langsung ubah tampilan di frontend
-        setTasks(currentTasks => 
-            currentTasks.map(task => 
-                task.id === taskId ? { ...task, status: newStatus } : task
-            )
-        );
-
-        // Kirim perubahan ke backend di latar belakang
+        setTasks(currentTasks => currentTasks.map(task => task.id === taskId ? { ...task, status: newStatus } : task));
         try {
-            await axios.put(`${API_URL}/api/tasks/${taskId}/status`, { 
-                status: newStatus, 
-                userRole: user.role 
-            });
-        } catch (error) {
-            // Jika gagal, kembalikan tampilan ke kondisi semula dan kasih notif
-            alert(error.response?.data?.error || "Gagal update status");
-            console.error("Gagal update status, mengembalikan state:", error);
+            await axios.put(`${API_URL}/api/tasks/${taskId}/status`, { status: newStatus, userRole: user.role });
+        } catch (_error) {
+            alert(_error.response?.data?.error || "Gagal update status");
             setTasks(oldTasks); 
         }
     };
 
     const handleDragEnd = (event) => {
         const { active, over } = event;
-
         if (!over || !active.data.current) return;
-
         const task = tasks.find(t => t.id === active.id);
         const sourceColumn = active.data.current.status;
         const destinationColumn = over.id;
-
         if (sourceColumn === destinationColumn) return;
 
         let confirmationMessage = '';
         let isValidMove = false;
-
         if (user.role === 'DEVELOPER' && sourceColumn === 'Belum Dikerjakan' && destinationColumn === 'Lagi Dikerjakan') {
             confirmationMessage = `Yakin mau mulai mengerjakan task "${task.title}"?`;
             isValidMove = true;
         }
-
         if (user.role === 'TEAM' && sourceColumn === 'Lagi Dikerjakan' && destinationColumn === 'Selesai') {
             confirmationMessage = `Yakin task "${task.title}" sudah selesai dengan benar?`;
             isValidMove = true;
         }
-
         if (isValidMove) {
             setConfirmation({
                 isOpen: true,
@@ -130,6 +110,30 @@ const KanbanBoard = ({ user }) => {
                     setConfirmation({ isOpen: false });
                 },
             });
+        }
+    };
+    
+    const handleUpdateTask = async (taskId, updatedData) => {
+        try {
+            const { data: updatedTaskFromServer } = await axios.put(`${API_URL}/api/tasks/${taskId}`, updatedData);
+            const finalUpdatedTask = {
+                ...tasks.find(t => t.id === taskId),
+                ...updatedTaskFromServer
+            };
+            setTasks(prevTasks => prevTasks.map(t => t.id === taskId ? finalUpdatedTask : t));
+            setSelectedTask(finalUpdatedTask);
+        } catch { 
+            alert('Gagal mengupdate task'); 
+        }
+    };
+
+    const handleDeleteTask = async (taskId) => {
+        try {
+            await axios.delete(`${API_URL}/api/tasks/${taskId}`);
+            setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId));
+            setSelectedTask(null);
+        } catch { 
+            alert('Gagal menghapus task'); 
         }
     };
 
@@ -178,25 +182,23 @@ const KanbanBoard = ({ user }) => {
                     </div>
                 </div>
                 {user.role === 'TEAM' && (
-                    <button onClick={() => setIsModalOpen(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded">
+                    <button onClick={() => setIsCreateModalOpen(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded">
                         + Buat Task Baru
                     </button>
                 )}
             </div>
 
-            <CreateTaskModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleCreateTask} userTeam={user.team} />
-            <ConfirmationModal 
-                isOpen={confirmation.isOpen} 
-                message={confirmation.message} 
-                onConfirm={confirmation.onConfirm} 
-                onCancel={() => setConfirmation({ isOpen: false })} 
-            />
+            <CreateTaskModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSubmit={handleCreateTask} userTeam={user.team} />
+            <ConfirmationModal isOpen={confirmation.isOpen} message={confirmation.message} onConfirm={confirmation.onConfirm} onCancel={() => setConfirmation({ isOpen: false })} />
+            {selectedTask && (
+                <TaskDetailModal task={selectedTask} user={user} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} />
+            )}
             
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
                 {loading ? <p>Lagi ngambil data...</p> : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {Object.entries(columns).map(([status, tasksInColumn]) => (
-                             <Column key={status} id={status} title={status} tasks={tasksInColumn} user={user} />
+                             <Column key={status} id={status} title={status} tasks={tasksInColumn} onCardClick={setSelectedTask} />
                         ))}
                     </div>
                 )}
