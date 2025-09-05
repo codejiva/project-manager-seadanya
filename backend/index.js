@@ -14,25 +14,38 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const SENDER_EMAIL = 'onboarding@resend.dev';
 const APP_URL = process.env.APP_URL || 'http://localhost:5173';
 
-// --- FITUR 3: Template Email Cantik ---
-const createEmailTemplate = (title, body, buttonText, buttonLink) => {
+// --- Template Email dengan Tema Poster ---
+const createEmailTemplate = ({ greeting, introText, details, outroText, buttonText, buttonLink, signature, signatureSender }) => {
+    let detailsHtml = '';
+    if (details) {
+        detailsHtml = `
+        <div style="background-color: #2a4a43; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0; color: #e0e0d1; font-size: 16px; line-height: 1.5;">
+                <strong>Judul:</strong> ${details.title}<br>
+                <strong>Deskripsi:</strong> ${details.description}
+            </p>
+        </div>
+        `;
+    }
+
     return `
-    <!DOCTYPE html><html><head><style>body{font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #0f172a;}</style></head>
-    <body style="background-color: #0f172a; padding: 20px;">
+    <!DOCTYPE html><html><head><style>body{font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #0c1a17;}</style></head>
+    <body style="background-color: #0c1a17; padding: 20px;">
     <table width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="center">
-    <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #1e293b; border-radius: 8px; overflow: hidden; color: #cbd5e1;">
-        <tr><td style="background-color: #0f172a; color: #ffffff; padding: 20px; text-align: center; border-bottom: 1px solid #334155;">
-            <h1 style="margin: 0; font-size: 24px;">Web Manajemen Proyek</h1>
-        </td></tr>
+    <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #1a2e2a; border: 1px solid #2a4a43; border-radius: 8px; overflow: hidden; color: #e0e0d1;">
         <tr><td style="padding: 30px;">
-            <h2 style="color: #ffffff; margin-top: 0;">${title}</h2>
-            <p style="color: #cbd5e1; font-size: 16px; line-height: 1.5;">${body}</p>
+            <p style="font-size: 20px; margin-top: 0;">${greeting}</p>
+            <p style="font-size: 16px; line-height: 1.5;">${introText}</p>
+            ${detailsHtml}
+            <p style="font-size: 16px; line-height: 1.5;">${outroText}</p>
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${buttonLink}" style="background-color: #0891b2; color: #ffffff; padding: 15px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">${buttonText}</a>
+                <a href="${buttonLink}" style="background-color: #9dff00; color: #1a2e2a; padding: 15px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">${buttonText}</a>
             </div>
+            <p style="font-size: 16px; line-height: 1.5; margin-bottom: 5px;">${signature}</p>
+            <p style="font-size: 16px; line-height: 1.5; font-weight: bold; margin: 0;">${signatureSender}</p>
         </td></tr>
-        <tr><td style="background-color: #0f172a; color: #94a3b8; padding: 20px; text-align: center; font-size: 12px; border-top: 1px solid #334155;">
-            <p style="margin: 0;">Notifikasi ini dikirim secara otomatis.</p>
+        <tr><td style="background-color: #0c1a17; color: #6b7f7c; padding: 20px; text-align: center; font-size: 12px; border-top: 1px solid #2a4a43;">
+            <p style="margin: 0;">Notifikasi dari "Web Manajemen Proyek Biar Bung Nggak Tinggal Meninggal"</p>
         </td></tr>
     </table></td></tr></table></body></html>
     `;
@@ -97,8 +110,16 @@ app.post('/api/tasks', async (req, res) => {
         const { data: devUser } = await supabase.from('users').select('email').eq('role', 'DEVELOPER').single();
         const { data: requesterUser } = await supabase.from('users').select('username').eq('id', requester_id).single();
         if (devUser && devUser.email && requesterUser) {
-            const emailBody = `Ada request tugas baru dari <strong>${requesterUser.username}</strong> (Tim ${team}).<br><br><strong>Judul:</strong> ${title}<br><strong>Deskripsi:</strong> ${description || 'Tidak ada'}`;
-            const emailHtml = createEmailTemplate('Tugas Baru Dibuat', emailBody, 'Lihat Tugas', APP_URL);
+            const emailHtml = createEmailTemplate({
+                greeting: 'Halo, Bung!',
+                introText: 'Ada request baru nih!',
+                details: { title, description: description || 'Tidak ada' },
+                outroText: 'Selengkapnya bisa dicek di web ya.',
+                buttonText: 'Lihat Tugas',
+                buttonLink: APP_URL,
+                signature: 'Terima kasih,',
+                signatureSender: `${requesterUser.username} - Tim ${team}`
+            });
             await resend.emails.send({ from: SENDER_EMAIL, to: devUser.email, subject: `[TUGAS BARU] ${title}`, html: emailHtml });
         }
     } catch (emailError) { console.error("Gagal kirim email notif task baru:", emailError); }
@@ -118,8 +139,15 @@ app.put('/api/tasks/:id', async (req, res) => {
         const { data: taskOwner } = await supabase.from('users').select('username').eq('id', updatedTask.requester_id).single();
 
         if (devUser && devUser.email && taskOwner) {
-            const emailBody = `Tugas yang direquest oleh <strong>${taskOwner.username}</strong> (Tim ${updatedTask.team}) telah diubah detailnya.`;
-            const emailHtml = createEmailTemplate('Sebuah Tugas Telah Diupdate', emailBody, 'Lihat Perubahan', APP_URL);
+            const emailHtml = createEmailTemplate({
+                greeting: `Hai, Bung!`,
+                introText: `Ada update baru nih buat request-nya <strong>${taskOwner.username}</strong> dari tim <strong>${updatedTask.team}</strong>!`,
+                outroText: 'Jangan lupa cek ya!',
+                buttonText: 'Lihat Tugas',
+                buttonLink: APP_URL,
+                signature: 'Semangat,',
+                signatureSender: 'Web Manajemen Proyek Tinggal Meninggal'
+            });
             await resend.emails.send({ from: SENDER_EMAIL, to: devUser.email, subject: `[UPDATE] ${title}`, html: emailHtml });
         }
     } catch (emailError) { console.error("Gagal kirim email notif task update:", emailError); }
@@ -146,8 +174,15 @@ app.put('/api/tasks/:id/status', async (req, res) => {
             if (teamUsers && teamUsers.length > 0) {
                 const recipientEmails = teamUsers.map(u => u.email).filter(Boolean);
                 if (recipientEmails.length > 0) {
-                    const emailBody = `Tugas dengan judul "<strong>${currentTask.title}</strong>" sudah mulai dikerjakan oleh developer.`;
-                    const emailHtml = createEmailTemplate('Tugas Mulai Dikerjakan', emailBody, 'Lihat Progress', APP_URL);
+                    const emailHtml = createEmailTemplate({
+                        greeting: `Halo, Tim ${currentTask.team}!`,
+                        introText: `Tugas dengan judul "<strong>${currentTask.title}</strong>" sudah mulai dikerjakan oleh developer.`,
+                        outroText: 'Kamu akan diberi tahu lagi jika sudah selesai.',
+                        buttonText: 'Lihat Progress',
+                        buttonLink: APP_URL,
+                        signature: 'Info dari,',
+                        signatureSender: 'Web Manajemen Proyek Tinggal Meninggal'
+                    });
                     await resend.emails.send({ from: SENDER_EMAIL, to: recipientEmails, subject: `[DIKERJAKAN] ${currentTask.title}`, html: emailHtml });
                 }
             }
@@ -155,8 +190,15 @@ app.put('/api/tasks/:id/status', async (req, res) => {
         if (newStatus === 'Selesai' && currentTask.status === 'Lagi Dikerjakan') {
             const { data: devUser } = await supabase.from('users').select('email').eq('role', 'DEVELOPER').single();
             if (devUser && devUser.email) {
-                const emailBody = `Tugas dengan judul "<strong>${currentTask.title}</strong>" telah disetujui dan diselesaikan oleh Tim ${currentTask.team}.`;
-                const emailHtml = createEmailTemplate('Tugas Selesai', emailBody, 'Lihat Hasil', APP_URL);
+                const emailHtml = createEmailTemplate({
+                    greeting: 'Mantap, Bung!',
+                    introText: `Tugas dengan judul "<strong>${currentTask.title}</strong>" telah disetujui dan diselesaikan oleh Tim ${currentTask.team}.`,
+                    outroText: 'Satu kerjaan lagi beres!',
+                    buttonText: 'Lihat Hasil',
+                    buttonLink: APP_URL,
+                    signature: 'Kerja bagus,',
+                    signatureSender: 'Web Manajemen Proyek Tinggal Meninggal'
+                });
                 await resend.emails.send({ from: SENDER_EMAIL, to: devUser.email, subject: `[SELESAI] ${currentTask.title}`, html: emailHtml });
             }
         }
